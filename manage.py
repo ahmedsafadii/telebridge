@@ -6,8 +6,10 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    # Set default settings module
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'telebridge.settings.development')
+    # Check for DJANGO_SETTINGS_MODULE in environment first
+    # If not set, default to development settings
+    if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'telebridge.settings.development')
     
     try:
         from django.core.management import execute_from_command_line

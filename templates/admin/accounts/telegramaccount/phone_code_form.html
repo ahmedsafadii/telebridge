@@ -37,7 +37,7 @@
             
             <fieldset class="module aligned">
                 <h2>{% trans 'Enter Phone Code' %}</h2>
-                <p>Please enter the 6-digit verification code sent to your Telegram account <strong>{{ account.phone_number }}</strong>.</p>
+                <p>Please enter the 5-digit verification code sent to your Telegram account <strong>{{ account.phone_number }}</strong>.</p>
                 
                 {% for field in form %}
                     <div class="form-row{% if field.errors %} errors{% endif %}">

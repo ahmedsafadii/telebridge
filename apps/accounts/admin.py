@@ -17,10 +17,10 @@ from .services import TelegramClientService, run_async
 class PhoneCodeForm(forms.Form):
     """Form for entering phone code."""
     phone_code = forms.CharField(
-        max_length=6,
-        min_length=6,
+        max_length=5,
+        min_length=5,
         label="Phone Code",
-        help_text="Enter the 6-digit code sent to your Telegram"
+        help_text="Enter the 5-digit code sent to your Telegram"
     )
 
 

@@ -9,7 +9,8 @@ from telethon.errors import (
     PhoneCodeInvalidError, 
     PhoneCodeExpiredError,
     SessionPasswordNeededError,
-    PhoneNumberInvalidError
+    PhoneNumberInvalidError,
+    FloodWaitError
 )
 from django.conf import settings
 from django.utils import timezone
@@ -50,6 +51,11 @@ class TelegramClientService:
             client = await self.create_client()
             await client.connect()
             
+            # Check if already authorized
+            if await client.is_user_authorized():
+                await client.disconnect()
+                return False, "Account is already logged in"
+            
             # Send code request
             phone_code_hash = await client.send_code_request(self.account.phone_number)
             
@@ -61,6 +67,8 @@ class TelegramClientService:
             
         except PhoneNumberInvalidError:
             return False, "Invalid phone number"
+        except FloodWaitError as e:
+            return False, f"Too many requests. Wait {e.seconds} seconds before trying again"
         except Exception as e:
             return False, f"Error starting login: {str(e)}"
     

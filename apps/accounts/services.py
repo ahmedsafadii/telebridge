@@ -13,6 +13,7 @@ from telethon.errors import (
 )
 from django.conf import settings
 from django.utils import timezone
+from asgiref.sync import sync_to_async
 from .models import TelegramAccount
 
 
@@ -52,11 +53,8 @@ class TelegramClientService:
             # Send code request
             phone_code_hash = await client.send_code_request(self.account.phone_number)
             
-            # Update account status
-            self.account.session_status = 'phone_code_sent'
-            self.account.pending_phone = self.account.phone_number
-            self.account.phone_code_hash = phone_code_hash.phone_code_hash
-            self.account.save()
+            # Update account status using sync_to_async
+            await sync_to_async(self._update_account_for_phone_code)(phone_code_hash.phone_code_hash)
             
             await client.disconnect()
             return True, "Phone code sent successfully"
@@ -65,6 +63,13 @@ class TelegramClientService:
             return False, "Invalid phone number"
         except Exception as e:
             return False, f"Error starting login: {str(e)}"
+    
+    def _update_account_for_phone_code(self, phone_code_hash):
+        """Update account status for phone code (sync method)."""
+        self.account.session_status = 'phone_code_sent'
+        self.account.pending_phone = self.account.phone_number
+        self.account.phone_code_hash = phone_code_hash
+        self.account.save()
     
     async def confirm_phone_code(self, phone_code):
         """Confirm the phone code and complete login."""
@@ -79,12 +84,8 @@ class TelegramClientService:
                 phone_code_hash=self.account.phone_code_hash
             )
             
-            # Update account status
-            self.account.session_status = 'active'
-            self.account.pending_phone = None
-            self.account.phone_code_hash = None
-            self.account.last_check_at = timezone.now()
-            self.account.save()
+            # Update account status using sync_to_async
+            await sync_to_async(self._update_account_for_success)()
             
             await client.disconnect()
             return True, "Login successful"
@@ -95,12 +96,24 @@ class TelegramClientService:
             return False, "Phone code expired"
         except SessionPasswordNeededError:
             # Handle 2FA password
-            self.account.session_status = 'password_needed'
-            self.account.save()
+            await sync_to_async(self._update_account_for_password_needed)()
             await client.disconnect()
             return False, "Two-factor authentication required"
         except Exception as e:
             return False, f"Error confirming code: {str(e)}"
+    
+    def _update_account_for_success(self):
+        """Update account status for successful login (sync method)."""
+        self.account.session_status = 'active'
+        self.account.pending_phone = None
+        self.account.phone_code_hash = None
+        self.account.last_check_at = timezone.now()
+        self.account.save()
+    
+    def _update_account_for_password_needed(self):
+        """Update account status for password needed (sync method)."""
+        self.account.session_status = 'password_needed'
+        self.account.save()
     
     async def confirm_password(self, password):
         """Confirm 2FA password."""
@@ -111,10 +124,8 @@ class TelegramClientService:
             # Sign in with password
             await client.sign_in(password=password)
             
-            # Update account status
-            self.account.session_status = 'active'
-            self.account.last_check_at = timezone.now()
-            self.account.save()
+            # Update account status using sync_to_async
+            await sync_to_async(self._update_account_for_success)()
             
             await client.disconnect()
             return True, "Two-factor authentication successful"
@@ -130,23 +141,35 @@ class TelegramClientService:
             
             # Check if we're authorized
             if await client.is_user_authorized():
-                self.account.session_status = 'active'
-                self.account.last_check_at = timezone.now()
-                self.account.last_error = None
-                self.account.save()
+                await sync_to_async(self._update_account_for_active)()
                 await client.disconnect()
                 return True, "Account is active"
             else:
-                self.account.session_status = 'unknown'
-                self.account.save()
+                await sync_to_async(self._update_account_for_unknown)()
                 await client.disconnect()
                 return False, "Account not authorized"
                 
         except Exception as e:
-            self.account.session_status = 'error'
-            self.account.last_error = str(e)
-            self.account.save()
+            await sync_to_async(self._update_account_for_error)(str(e))
             return False, f"Error checking status: {str(e)}"
+    
+    def _update_account_for_active(self):
+        """Update account status for active (sync method)."""
+        self.account.session_status = 'active'
+        self.account.last_check_at = timezone.now()
+        self.account.last_error = None
+        self.account.save()
+    
+    def _update_account_for_unknown(self):
+        """Update account status for unknown (sync method)."""
+        self.account.session_status = 'unknown'
+        self.account.save()
+    
+    def _update_account_for_error(self, error_message):
+        """Update account status for error (sync method)."""
+        self.account.session_status = 'error'
+        self.account.last_error = error_message
+        self.account.save()
     
     async def logout(self):
         """Logout and clear session."""
@@ -159,21 +182,26 @@ class TelegramClientService:
             
             await client.disconnect()
             
-            # Clear session file
-            session_path = self.get_session_path()
-            if os.path.exists(session_path + '.session'):
-                os.remove(session_path + '.session')
-            
-            # Update account status
-            self.account.session_status = 'unknown'
-            self.account.pending_phone = None
-            self.account.phone_code_hash = None
-            self.account.save()
+            # Clear session file and update account using sync_to_async
+            await sync_to_async(self._clear_session_and_update_account)()
             
             return True, "Logout successful"
             
         except Exception as e:
             return False, f"Error logging out: {str(e)}"
+    
+    def _clear_session_and_update_account(self):
+        """Clear session file and update account (sync method)."""
+        # Clear session file
+        session_path = self.get_session_path()
+        if os.path.exists(session_path + '.session'):
+            os.remove(session_path + '.session')
+        
+        # Update account status
+        self.account.session_status = 'unknown'
+        self.account.pending_phone = None
+        self.account.phone_code_hash = None
+        self.account.save()
 
 
 def run_async(coro):

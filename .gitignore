@@ -161,3 +161,7 @@ dump.rdb
 *.env
 .env.*
 !.env.example
+
+# Telegram session files
+sessions/
+*.session
